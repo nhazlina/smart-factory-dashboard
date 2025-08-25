@@ -1,45 +1,41 @@
 <script setup>
-import { ref, onMounted, onUnmounted} from "vue";
+import { ref, onMounted, onUnmounted, watch} from "vue";
 import ProductionChart from "./components/ProductionChart.vue";
 
 const machines = ref([]);
 const productionHistory = ref([]); //store production count of M1
+const selectedMachineId = ref(1); //default to Machine 1
 let intervalId = null;
 const lastUpdated = ref(null);
 
 const fetchMachines = async () => {
-  console.log("fetchMachines called"); // 👈 first check
 
   try {
     const res = await fetch("http://localhost:4000/machines");
-    console.log("Fetch response status:", res.status); // 👈 check backend response
-
     const data = await res.json();
     machines.value = data;
     lastUpdated.value = new Date().toLocaleTimeString();
 
-    // track production count of Machine 1
-    if (data.length > 0) {
+    // track selected machine history
+    const selectedMachine = data.find(m => m.id === selectedMachineId.value);
+    if(selectedMachine){
       const newHistory = [...productionHistory.value];
       newHistory.push({
-        time: new Date().toLocaleTimeString(),
-        value: data[0].productionCount
+        time: `T${newHistory.length + 1}`,
+        value: selectedMachine.productionCount
       });
-
-
-      if(newHistory.length > 20){
-        newHistory.shift();
-      }
+      if (newHistory.length > 20) newHistory.shift();
       productionHistory.value = newHistory;
     }
-
-    // Debug log for chart
-    console.log("Passing to chart:", productionHistory.value);
-
   } catch (err) {
     console.error("Failed to fetch machines:", err);
   }
 };
+
+watch(selectedMachineId,() =>{
+  productionHistory.value = []; //reset when switching
+  fetchMachines();
+});
 
 
 onMounted(() => {
@@ -81,7 +77,18 @@ onUnmounted(() =>{
     </div>
 
     <!--Chart-->
-    <h2 class="text-center mt-5">Machine 1 Production Over Time</h2>
+    <h2 class="text-center mt-5"> Machine {{ selectedMachineId }} Production Over Time</h2>
+
+    <!-- Dropdown-->
+    <div class="text-center mb-3">
+      <label class="me-2 fw-bold">Select Machine:</label>
+      <select v-model="selectedMachineId" class="form-select w-auto d-inline-block">
+        <option v-for="machine in machines" :key="machine.id" :value="machine.id">
+          Machine {{ machine.id }}
+        </option>
+      </select>
+    </div>
+
     <div class="card shadow-lg border-0 rounded-4 p-3">
       <ProductionChart :data="productionHistory"/>
     </div>
